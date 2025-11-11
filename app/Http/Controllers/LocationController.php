@@ -16,11 +16,19 @@ class LocationController extends Controller
     public function getRegions()
     {
         try {
-            $regions = cache()->remember('regions', 3600, function () {
-                return Region::select('id', 'code', 'name', 'psgc_code')
+            // Try to use cache, but fallback to direct query if cache fails
+            try {
+                $regions = cache()->remember('regions', 3600, function () {
+                    return Region::select('id', 'code', 'name', 'psgc_code')
+                        ->orderBy('name')
+                        ->get();
+                });
+            } catch (\Exception $cacheError) {
+                \Log::warning('Cache failed, using direct query: ' . $cacheError->getMessage());
+                $regions = Region::select('id', 'code', 'name', 'psgc_code')
                     ->orderBy('name')
                     ->get();
-            });
+            }
 
             return response()->json($regions);
         } catch (\Exception $e) {
