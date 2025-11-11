@@ -233,6 +233,10 @@ class AuthController extends Controller
         // Clean up
         $otp->delete();
         cache()->forget("otp_data_{$request->email}");
+        
+        // Reset OTP rate limiting counters on successful verification
+        cache()->forget("otp_attempts_{$request->email}");
+        cache()->forget("otp_last_sent_{$request->email}");
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
