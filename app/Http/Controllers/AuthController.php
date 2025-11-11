@@ -59,8 +59,9 @@ class AuthController extends Controller
         $lastSent = cache()->get($otpLastSentKey);
         
         if ($lastSent) {
-            $cooldownMinutes = $attempts >= 3 ? 3 : 1; // 3 minutes after 3 attempts, 1 minute otherwise
-            $cooldownEnd = $lastSent->addMinutes($cooldownMinutes);
+            // Determine cooldown: 1 minute for first 2 resends, 3 minutes after 3+ attempts
+            $cooldownMinutes = $attempts >= 3 ? 3 : 1;
+            $cooldownEnd = (clone $lastSent)->addMinutes($cooldownMinutes);
             
             if (now()->isBefore($cooldownEnd)) {
                 $secondsRemaining = now()->diffInSeconds($cooldownEnd);
