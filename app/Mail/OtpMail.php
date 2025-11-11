@@ -29,7 +29,7 @@ class OtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            from: env('MAIL_FROM_ADDRESS', 'markandreicondino@gmail.com'),
+            from: config('mail.from.address', env('MAIL_FROM_ADDRESS', 'noreply@example.com')),
             subject: 'Your VoteHubPH Verification Code',
         );
     }
