@@ -22,7 +22,8 @@ return [
     'allowed_origins' => array_filter(array_merge(
         ['http://localhost:3000', 'http://localhost:3001'],
         env('FRONTEND_URL') ? [env('FRONTEND_URL')] : [],
-        env('ADMIN_URL') ? [env('ADMIN_URL')] : []
+        env('ADMIN_URL') ? [env('ADMIN_URL')] : [],
+        ['https://vote-hub-ph-frontend.vercel.app'] // Explicitly add production frontend URL
     )),
 
     'allowed_origins_patterns' => [
