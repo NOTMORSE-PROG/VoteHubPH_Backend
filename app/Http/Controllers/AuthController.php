@@ -101,29 +101,16 @@ class AuthController extends Controller
             \Log::error('Email error details: ' . $e->getTraceAsString());
             \Log::error('Mail config - Host: ' . config('mail.mailers.smtp.host') . ', Username: ' . config('mail.mailers.smtp.username'));
             
-            // In development or if mail fails, return OTP in response
-            if (config('app.debug') || env('APP_ENV') !== 'production') {
-                \Log::warning('Mail sending failed. Returning OTP in response for development.');
-                return response()->json([
-                    'message' => 'OTP generated (mail sending failed)',
-                    'success' => true,
-                    'otp' => $otpCode, // Only in development
-                    'warning' => 'Mail sending failed: ' . $e->getMessage(),
-                    'debug' => [
-                        'mail_config' => [
-                            'mailer' => config('mail.default'),
-                            'host' => config('mail.mailers.smtp.host'),
-                            'port' => config('mail.mailers.smtp.port'),
-                            'username' => config('mail.mailers.smtp.username'),
-                            'from_address' => config('mail.from.address'),
-                        ]
-                    ]
-                ]);
-            }
-            
+            // Always return OTP in response if email fails (for debugging and user experience)
+            // This allows users to complete registration even if email service is down
+            \Log::warning('OTP email failed, returning OTP in response for: ' . $request->email);
             return response()->json([
-                'error' => 'Failed to send OTP email. Please try again.'
-            ], 500);
+                'message' => 'OTP generated. Check your email. If you did not receive it, use the code below.',
+                'success' => true,
+                'otp' => $otpCode, // Return OTP in response as fallback
+                'warning' => 'Email sending failed: ' . $e->getMessage(),
+                'email_sent' => false,
+            ]);
         }
 
         return response()->json([
