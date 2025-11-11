@@ -26,10 +26,13 @@ class PartyListController extends Controller
         // Check if this is an admin request (has X-User-Id header)
         $isAdmin = $request->header('X-User-Id') !== null;
         
+        // Case-insensitive search using LOWER() for cross-database compatibility
+        $queryLower = strtolower($query);
+        
         // Properly group the OR conditions so the search works correctly
-        $partyListsQuery = PartyList::where(function ($q) use ($query) {
-            $q->where('name', 'LIKE', "%{$query}%")
-              ->orWhere('acronym', 'LIKE', "%{$query}%");
+        $partyListsQuery = PartyList::where(function ($q) use ($queryLower) {
+            $q->whereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
+              ->orWhereRaw('LOWER(acronym) LIKE ?', ["%{$queryLower}%"]);
         });
 
         // Only filter by is_active for public (non-admin) requests
