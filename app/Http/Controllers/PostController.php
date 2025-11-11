@@ -65,40 +65,51 @@ class PostController extends Controller
      */
     public function getApprovedPosts()
     {
-        // Optimized: Use withCount to avoid N+1 queries
-        $posts = \App\Models\Post::where('status', 'approved')
-            ->with('user:id,name,email')
-            ->withCount(['votes', 'comments'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($post) {
-                return [
-                    'id' => $post->id,
-                    'user_id' => $post->user_id,
-                    'name' => $post->name,
-                    'level' => $post->level,
-                    'position' => $post->position,
-                    'bio' => $post->bio,
-                    'platform' => $post->platform,
-                    'education' => $post->education,
-                    'achievements' => $post->achievements,
-                    'images' => $post->images,
-                    'profile_photo' => $post->profile_photo,
-                    'party' => $post->party,
-                    'status' => $post->status,
-                    'city_id' => $post->city_id,
-                    'district_id' => $post->district_id,
-                    'barangay_id' => $post->barangay_id,
-                    'created_at' => $post->created_at,
-                    'updated_at' => $post->updated_at,
-                    'user' => $post->user,
-                    'votes_count' => $post->votes_count ?? 0,
-                    'comments_count' => $post->comments_count ?? 0,
-                ];
-            });
+        try {
+            // Optimized: Use withCount to avoid N+1 queries
+            $posts = \App\Models\Post::where('status', 'approved')
+                ->with('user:id,name,email')
+                ->withCount(['votes', 'comments'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($post) {
+                    return [
+                        'id' => $post->id,
+                        'user_id' => $post->user_id,
+                        'name' => $post->name,
+                        'level' => $post->level,
+                        'position' => $post->position,
+                        'bio' => $post->bio,
+                        'platform' => $post->platform,
+                        'education' => $post->education,
+                        'achievements' => $post->achievements,
+                        'images' => $post->images,
+                        'profile_photo' => $post->profile_photo,
+                        'party' => $post->party,
+                        'status' => $post->status,
+                        'city_id' => $post->city_id,
+                        'district_id' => $post->district_id,
+                        'barangay_id' => $post->barangay_id,
+                        'created_at' => $post->created_at,
+                        'updated_at' => $post->updated_at,
+                        'user' => $post->user,
+                        'votes_count' => $post->votes_count ?? 0,
+                        'comments_count' => $post->comments_count ?? 0,
+                    ];
+                });
 
-        return response()->json($posts)
-            ->header('Cache-Control', 'public, max-age=30'); // Cache for 30 seconds
+            return response()->json($posts)
+                ->header('Cache-Control', 'public, max-age=30'); // Cache for 30 seconds
+        } catch (\Exception $e) {
+            \Log::error('Error fetching approved posts: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to fetch posts',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

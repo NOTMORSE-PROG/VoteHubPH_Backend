@@ -1,5 +1,5 @@
-# Use PHP 8.2 with FPM
-FROM php:8.2-fpm
+# Use PHP 8.2 CLI (for artisan serve)
+FROM php:8.2-cli
 
 # Set working directory
 WORKDIR /var/www/html
@@ -34,6 +34,6 @@ RUN chown -R www-data:www-data /var/www/html \
 # Expose port (Render will set PORT env variable)
 EXPOSE 8000
 
-# Start command
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Start command - run migrations and start server
+CMD set -e && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
 
