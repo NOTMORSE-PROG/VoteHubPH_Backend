@@ -256,9 +256,8 @@ class UserController extends Controller
      */
     private function cleanupEmptyPartyLists(): void
     {
-        $emptyPartyLists = \App\Models\PartyList::withCount('members')
-            ->having('members_count', '=', 0)
-            ->get();
+        // Find all party lists with no members using whereDoesntHave
+        $emptyPartyLists = \App\Models\PartyList::whereDoesntHave('members')->get();
 
         foreach ($emptyPartyLists as $partyList) {
             $partyList->delete();

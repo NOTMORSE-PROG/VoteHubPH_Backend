@@ -71,9 +71,10 @@ class PartyListController extends Controller
         // Clean up empty party lists before fetching
         $this->cleanupEmptyPartyLists();
         
+        // Only return party lists that have at least one member
         $partyLists = PartyList::where('is_active', true)
+            ->whereHas('members') // Only party lists with members
             ->withCount('members')
-            ->having('members_count', '>', 0) // Only return party lists with members
             ->orderBy('name')
             ->get(['id', 'name', 'acronym', 'description', 'sector', 'logo_url', 'member_count', 'created_at']);
 
@@ -203,10 +204,8 @@ class PartyListController extends Controller
      */
     private function cleanupEmptyPartyLists(): void
     {
-        // Find all party lists with no members
-        $emptyPartyLists = PartyList::withCount('members')
-            ->having('members_count', '=', 0)
-            ->get();
+        // Find all party lists with no members using whereDoesntHave
+        $emptyPartyLists = PartyList::whereDoesntHave('members')->get();
 
         // Delete empty party lists
         foreach ($emptyPartyLists as $partyList) {
