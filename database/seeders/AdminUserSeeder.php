@@ -43,8 +43,8 @@ class AdminUserSeeder extends Seeder
                 'is_admin' => true,
                 'provider' => 'credentials',
                 'language' => 'en',
-                'profile_completed' => true,
-                'email_verified_at' => now(),
+                'profileCompleted' => true,
+                'emailVerified' => now(),
                 'createdAt' => now(),
                 'updatedAt' => now(),
             ]);
