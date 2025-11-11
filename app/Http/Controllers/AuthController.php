@@ -101,32 +101,61 @@ class AuthController extends Controller
 
         // Send OTP email
         try {
-            // Check if mail is configured
-            $mailHost = config('mail.mailers.smtp.host');
-            $mailUsername = config('mail.mailers.smtp.username');
-            $mailPassword = config('mail.mailers.smtp.password');
+            // Check if mail is configured (support both SMTP and Resend)
+            $mailer = config('mail.default');
+            $isResend = $mailer === 'resend';
+            $isSmtp = $mailer === 'smtp';
             
-            if (empty($mailHost) || empty($mailUsername) || empty($mailPassword)) {
-                // Mail not configured - return OTP in response
+            if ($isResend) {
+                // Check Resend configuration
+                $resendKey = config('services.resend.key');
+                if (empty($resendKey)) {
+                    \Log::warning('Resend API key not configured. Returning OTP in response for: ' . $request->email);
+                    return response()->json([
+                        'message' => 'OTP generated. Check your email. If you did not receive it, use the code below.',
+                        'success' => true,
+                        'otp' => $otpCode,
+                        'warning' => 'Resend API key is missing. Please configure RESEND_KEY in environment variables.',
+                        'email_sent' => false,
+                    ]);
+                }
+            } elseif ($isSmtp) {
+                // Check SMTP configuration
+                $mailHost = config('mail.mailers.smtp.host');
+                $mailUsername = config('mail.mailers.smtp.username');
+                $mailPassword = config('mail.mailers.smtp.password');
+                
+                if (empty($mailHost) || empty($mailUsername) || empty($mailPassword)) {
+                    \Log::warning('SMTP not configured. Returning OTP in response for: ' . $request->email);
+                    return response()->json([
+                        'message' => 'OTP generated. Check your email. If you did not receive it, use the code below.',
+                        'success' => true,
+                        'otp' => $otpCode,
+                        'warning' => 'SMTP configuration is missing. Please configure SMTP settings.',
+                        'email_sent' => false,
+                    ]);
+                }
+                
+                // Configure mail settings with proper timeout and encryption
+                config([
+                    'mail.mailers.smtp.timeout' => 30,
+                    'mail.mailers.smtp.encryption' => env('MAIL_ENCRYPTION', 'tls'),
+                ]);
+            } else {
+                // Unknown mailer or not configured
                 \Log::warning('Mail not configured. Returning OTP in response for: ' . $request->email);
                 return response()->json([
                     'message' => 'OTP generated. Check your email. If you did not receive it, use the code below.',
                     'success' => true,
                     'otp' => $otpCode,
-                    'warning' => 'Mail configuration is missing. Please configure SMTP settings.',
+                    'warning' => 'Mail configuration is missing. Please configure MAIL_MAILER and credentials.',
                     'email_sent' => false,
                 ]);
             }
             
-            // Configure mail settings with proper timeout and encryption
-            config([
-                'mail.mailers.smtp.timeout' => 30,
-                'mail.mailers.smtp.encryption' => env('MAIL_ENCRYPTION', 'tls'),
-            ]);
-            
             Mail::to($request->email)->send(new OtpMail($otpCode));
             
-            \Log::info('OTP email sent successfully to: ' . $request->email);
+            \Log::info('OTP email sent successfully to: ' . $request->email . ' using ' . $mailer);
         } catch (\Exception $e) {
             \Log::error('Failed to send OTP email: ' . $e->getMessage());
             \Log::error('Email error details: ' . $e->getTraceAsString());
