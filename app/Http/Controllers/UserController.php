@@ -247,4 +247,18 @@ class UserController extends Controller
             ]);
         });
     }
+
+    /**
+     * Clean up party lists that have no members
+     */
+    private function cleanupEmptyPartyLists(): void
+    {
+        $emptyPartyLists = \App\Models\PartyList::withCount('members')
+            ->having('members_count', '=', 0)
+            ->get();
+
+        foreach ($emptyPartyLists as $partyList) {
+            $partyList->delete();
+        }
+    }
 }

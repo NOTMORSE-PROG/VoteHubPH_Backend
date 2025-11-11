@@ -53,6 +53,9 @@ class PartyListController extends Controller
      */
     public function index()
     {
+        // Clean up empty party lists before fetching
+        $this->cleanupEmptyPartyLists();
+        
         $partyLists = PartyList::withCount('members')
             ->orderBy('name')
             ->get();
@@ -65,8 +68,12 @@ class PartyListController extends Controller
      */
     public function getPublicPartyLists()
     {
+        // Clean up empty party lists before fetching
+        $this->cleanupEmptyPartyLists();
+        
         $partyLists = PartyList::where('is_active', true)
             ->withCount('members')
+            ->having('members_count', '>', 0) // Only return party lists with members
             ->orderBy('name')
             ->get(['id', 'name', 'acronym', 'description', 'sector', 'logo_url', 'member_count', 'created_at']);
 
@@ -179,9 +186,32 @@ class PartyListController extends Controller
     public function show($id)
     {
         $partyList = PartyList::with(['members.post.user:id,name,email'])
+            ->withCount('members')
             ->findOrFail($id);
 
+        // If party list has no members, delete it and return 404
+        if ($partyList->members_count === 0) {
+            $partyList->delete();
+            abort(404, 'Party list not found');
+        }
+
         return response()->json($partyList);
+    }
+
+    /**
+     * Clean up party lists that have no members
+     */
+    private function cleanupEmptyPartyLists(): void
+    {
+        // Find all party lists with no members
+        $emptyPartyLists = PartyList::withCount('members')
+            ->having('members_count', '=', 0)
+            ->get();
+
+        // Delete empty party lists
+        foreach ($emptyPartyLists as $partyList) {
+            $partyList->delete();
+        }
     }
 }
 
