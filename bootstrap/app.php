@@ -16,11 +16,6 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
-        // Ensure CORS middleware is applied to all API routes
-        $middleware->api(append: [
-            \Illuminate\Http\Middleware\HandleCors::class,
-        ]);
-
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'nextauth' => \App\Http\Middleware\NextAuthSession::class,
