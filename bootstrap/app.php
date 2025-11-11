@@ -50,10 +50,19 @@ return Application::configure(basePath: dirname(__DIR__))
                     'url' => $request->fullUrl(),
                 ]);
 
-                return response()->json([
+                // Always include error message in production for debugging
+                $errorMessage = $e->getMessage();
+                $errorDetails = [
                     'error' => 'Internal Server Error',
-                    'message' => env('APP_DEBUG', false) ? $e->getMessage() : 'An error occurred while processing your request.',
-                ], 500);
+                    'message' => $errorMessage,
+                ];
+                
+                // Include more details if it's a database error
+                if (str_contains($errorMessage, 'SQLSTATE') || str_contains($errorMessage, 'database') || str_contains($errorMessage, 'table')) {
+                    $errorDetails['type'] = 'database_error';
+                }
+                
+                return response()->json($errorDetails, 500);
             }
         });
     })->create();
