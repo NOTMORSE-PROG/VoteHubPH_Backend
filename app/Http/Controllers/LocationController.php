@@ -15,13 +15,24 @@ class LocationController extends Controller
      */
     public function getRegions()
     {
-        $regions = cache()->remember('regions', 3600, function () {
-            return Region::select('id', 'code', 'name', 'psgc_code')
-                ->orderBy('name')
-                ->get();
-        });
+        try {
+            $regions = cache()->remember('regions', 3600, function () {
+                return Region::select('id', 'code', 'name', 'psgc_code')
+                    ->orderBy('name')
+                    ->get();
+            });
 
-        return response()->json($regions);
+            return response()->json($regions);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching regions: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to fetch regions',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

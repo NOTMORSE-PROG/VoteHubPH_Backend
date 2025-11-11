@@ -39,5 +39,21 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Return JSON errors for API routes
+        $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*')) {
+                \Log::error('API Error: ' . $e->getMessage(), [
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'url' => $request->fullUrl(),
+                ]);
+
+                return response()->json([
+                    'error' => 'Internal Server Error',
+                    'message' => env('APP_DEBUG', false) ? $e->getMessage() : 'An error occurred while processing your request.',
+                ], 500);
+            }
+        });
     })->create();
