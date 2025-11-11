@@ -1,0 +1,13 @@
+# GitGuardian configuration
+paths-ignore:
+  - '**/*.md'
+  - '**/vendor/**'
+  - '**/node_modules/**'
+  - '**/.git/**'
+
+matches-ignore:
+  - name: Generic Secret
+    match: 'your_.*_here'
+  - name: Example Keys
+    match: 'example.*key'
+

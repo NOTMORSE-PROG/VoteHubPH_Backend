@@ -36,3 +36,9 @@ cleanup-*.php
 # Logs
 *.log
 /storage/logs/*.log
+
+# Environment variable documentation with sensitive data
+*_ENV*.md
+*_SETUP*.md
+RESEND*.md
+EMAIL*.md
