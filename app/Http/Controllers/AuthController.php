@@ -51,11 +51,39 @@ class AuthController extends Controller
         // Clean up expired OTPs
         Otp::cleanupExpired();
 
+        // Rate limiting: Check cooldown period based on number of attempts
+        $otpAttemptsKey = "otp_attempts_{$request->email}";
+        $otpLastSentKey = "otp_last_sent_{$request->email}";
+        
+        $attempts = (int) cache()->get($otpAttemptsKey, 0);
+        $lastSent = cache()->get($otpLastSentKey);
+        
+        if ($lastSent) {
+            $cooldownMinutes = $attempts >= 3 ? 3 : 1; // 3 minutes after 3 attempts, 1 minute otherwise
+            $cooldownEnd = $lastSent->addMinutes($cooldownMinutes);
+            
+            if (now()->isBefore($cooldownEnd)) {
+                $secondsRemaining = now()->diffInSeconds($cooldownEnd);
+                $minutesRemaining = ceil($secondsRemaining / 60);
+                
+                return response()->json([
+                    'error' => "Please wait {$minutesRemaining} minute(s) before requesting a new OTP.",
+                    'cooldown_seconds' => $secondsRemaining,
+                    'cooldown_minutes' => $minutesRemaining,
+                ], 429); // 429 Too Many Requests
+            }
+        }
+
         // Generate 6-digit OTP
         $otpCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         // Delete any existing OTP for this email
         Otp::where('email', $request->email)->delete();
+        
+        // Increment attempt counter and update last sent time
+        $attempts++;
+        cache()->put($otpAttemptsKey, $attempts, now()->addHours(24)); // Store attempts for 24 hours
+        cache()->put($otpLastSentKey, now(), now()->addHours(24)); // Store last sent time for 24 hours
 
         // Create new OTP (expires in 5 minutes)
         Otp::create([
