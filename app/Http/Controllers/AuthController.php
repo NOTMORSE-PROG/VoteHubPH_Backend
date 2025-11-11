@@ -1,0 +1,418 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\Account;
+use App\Models\Otp;
+use App\Mail\OtpMail;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class AuthController extends Controller
+{
+    /**
+     * Send OTP to user's email
+     */
+    public function sendOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|max:255',
+            'name' => 'required|string|max:255',
+            'password' => 'required|string|min:8',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Check if email already exists
+        $existingUser = User::where('email', $request->email)->first();
+        if ($existingUser) {
+            // If user exists with Google OAuth, tell them to sign in with Google
+            if ($existingUser->provider === 'google') {
+                return response()->json([
+                    'error' => 'This email is already registered with Google. Please sign in using Google OAuth instead.'
+                ], 400);
+            } else {
+                // User already has credentials account
+                return response()->json([
+                    'error' => 'Email already registered. Please use login instead.'
+                ], 400);
+            }
+        }
+
+        // Clean up expired OTPs
+        Otp::cleanupExpired();
+
+        // Generate 6-digit OTP
+        $otpCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Delete any existing OTP for this email
+        Otp::where('email', $request->email)->delete();
+
+        // Create new OTP (expires in 5 minutes)
+        Otp::create([
+            'email' => $request->email,
+            'code' => $otpCode,
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        // Store name and password in session/cache for verification step (5 minutes to match OTP expiration)
+        cache()->put("otp_data_{$request->email}", [
+            'name' => $request->name,
+            'password' => $request->password,
+        ], now()->addMinutes(5));
+
+        // Send OTP email
+        try {
+            // Check if mail is configured
+            $mailHost = config('mail.mailers.smtp.host');
+            $mailUsername = config('mail.mailers.smtp.username');
+            
+            if (empty($mailHost) || empty($mailUsername)) {
+                // Mail not configured - in development, return OTP in response
+                if (config('app.debug')) {
+                    \Log::warning('Mail not configured. Returning OTP in response for development.');
+                    return response()->json([
+                        'message' => 'OTP generated (mail not configured)',
+                        'success' => true,
+                        'otp' => $otpCode, // Only in development
+                        'warning' => 'Mail configuration is missing. Please configure SMTP settings in .env file.',
+                    ]);
+                } else {
+                    return response()->json([
+                        'error' => 'Email service is not configured. Please contact support.'
+                    ], 500);
+                }
+            }
+            
+            Mail::to($request->email)->send(new OtpMail($otpCode));
+        } catch (\Exception $e) {
+            \Log::error('Failed to send OTP email: ' . $e->getMessage());
+            \Log::error('Email error details: ' . $e->getTraceAsString());
+            
+            // In development, return OTP in response if mail fails
+            if (config('app.debug')) {
+                \Log::warning('Mail sending failed. Returning OTP in response for development.');
+                return response()->json([
+                    'message' => 'OTP generated (mail sending failed)',
+                    'success' => true,
+                    'otp' => $otpCode, // Only in development
+                    'warning' => 'Mail sending failed: ' . $e->getMessage(),
+                    'debug' => [
+                        'mail_config' => [
+                            'mailer' => config('mail.default'),
+                            'host' => config('mail.mailers.smtp.host'),
+                            'port' => config('mail.mailers.smtp.port'),
+                            'username' => config('mail.mailers.smtp.username'),
+                            'from_address' => config('mail.from.address'),
+                        ]
+                    ]
+                ]);
+            }
+            
+            return response()->json([
+                'error' => 'Failed to send OTP email. Please try again.'
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'OTP sent successfully to your email',
+            'success' => true,
+        ]);
+    }
+
+    /**
+     * Verify OTP and register user
+     */
+    public function verifyOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'otp' => 'required|string|size:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Find OTP record
+        $otp = Otp::where('email', $request->email)
+            ->where('code', $request->otp)
+            ->first();
+
+        if (!$otp) {
+            return response()->json([
+                'error' => 'Invalid OTP code'
+            ], 400);
+        }
+
+        if ($otp->isExpired()) {
+            $otp->delete();
+            return response()->json([
+                'error' => 'OTP has expired. Please request a new one.'
+            ], 400);
+        }
+
+        // Get stored registration data
+        $registrationData = cache()->get("otp_data_{$request->email}");
+        if (!$registrationData) {
+            return response()->json([
+                'error' => 'Registration data expired. Please start over.'
+            ], 400);
+        }
+
+        // Check if user already exists (should not happen if sendOtp check worked, but double-check)
+        $existingUser = User::where('email', $request->email)->first();
+        
+        if ($existingUser) {
+            // User already exists - this shouldn't happen if sendOtp check worked
+            $otp->delete();
+            cache()->forget("otp_data_{$request->email}");
+            
+            if ($existingUser->provider === 'google') {
+                return response()->json([
+                    'error' => 'This email is already registered with Google. Please sign in using Google OAuth instead.'
+                ], 400);
+            } else {
+                return response()->json([
+                    'error' => 'Email already registered. Please use login instead.'
+                ], 400);
+            }
+        } else {
+            // Create new user
+            // Note: User table uses camelCase column names
+            $userId = $this->generateCuid();
+            
+            // Use DB::table() directly to handle camelCase column names
+            DB::table('User')->insert([
+                'id' => $userId,
+                'name' => $registrationData['name'],
+                'email' => $request->email,
+                'password' => Hash::make($registrationData['password']),
+                'provider' => 'credentials',
+                'language' => $request->language ?? 'en',
+                'profileCompleted' => true, // No longer require profile completion
+                'emailVerified' => now(),
+                'createdAt' => now(),
+                'updatedAt' => now(),
+            ]);
+            
+            // Fetch the created user using the model
+            $user = User::find($userId);
+        }
+
+        // Clean up
+        $otp->delete();
+        cache()->forget("otp_data_{$request->email}");
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Email verified and account created successfully',
+            'user' => $user,
+            'token' => $token,
+        ], 201);
+    }
+
+    /**
+     * Register a new user (deprecated - use sendOtp/verifyOtp instead)
+     */
+    public function register(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::create([
+            'id' => $this->generateCuid(),
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'provider' => 'credentials',
+            'language' => $request->language ?? 'en',
+            'profile_completed' => false,
+        ]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'User registered successfully',
+            'user' => $user,
+            'token' => $token,
+        ], 201);
+    }
+
+    /**
+     * Login user
+     */
+    public function login(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        // Check if user has a password set
+        if (!$user->password) {
+            return response()->json([
+                'message' => 'This account was created with Google. Please sign in with Google or set a password first.'
+            ], 401);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        // Update last login
+        $user->update(['last_login_at' => now()]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'user' => $user,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Logout user (revoke token)
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully'
+        ]);
+    }
+
+    /**
+     * Handle Google OAuth callback
+     */
+    public function googleCallback(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'name' => 'required|string',
+            'google_id' => 'required|string',
+            'image' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Check if user exists with this email
+        $user = User::where('email', $request->email)->first();
+
+        if ($user) {
+            // User exists, update last login
+            $user->update([
+                'last_login_at' => now(),
+                'image' => $request->image ?? $user->image,
+            ]);
+
+            // Check if Google account is linked
+            $account = Account::where('user_id', $user->id)
+                ->where('provider', 'google')
+                ->first();
+
+            if (!$account) {
+                // Link Google account
+                Account::create([
+                    'id' => $this->generateCuid(),
+                    'user_id' => $user->id,
+                    'type' => 'oauth',
+                    'provider' => 'google',
+                    'provider_account_id' => $request->google_id,
+                ]);
+            }
+        } else {
+            // Create new user
+            // Note: User table uses camelCase column names
+            $userId = $this->generateCuid();
+            
+            // Use DB::table() directly to handle camelCase column names
+            DB::table('User')->insert([
+                'id' => $userId,
+                'email' => $request->email,
+                'name' => $request->name,
+                'image' => $request->image,
+                'provider' => 'google',
+                'providerId' => $request->google_id,
+                'language' => 'en',
+                'profileCompleted' => true, // No longer require profile completion
+                'emailVerified' => now(),
+                'lastLoginAt' => now(),
+                'createdAt' => now(),
+                'updatedAt' => now(),
+            ]);
+            
+            // Fetch the created user using the model
+            $user = User::find($userId);
+
+            // Create Google account entry
+            Account::create([
+                'id' => $this->generateCuid(),
+                'user_id' => $user->id,
+                'type' => 'oauth',
+                'provider' => 'google',
+                'provider_account_id' => $request->google_id,
+            ]);
+        }
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Google authentication successful',
+            'user' => $user,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Generate a CUID (compatible with Prisma)
+     * Simple implementation - for production, use a proper CUID library
+     */
+    private function generateCuid()
+    {
+        return 'c' . Str::random(24);
+    }
+}
