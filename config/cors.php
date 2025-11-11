@@ -25,7 +25,8 @@ return [
     )),
 
     'allowed_origins_patterns' => [
-        '/^https:\/\/.*\.vercel\.app$/',
+        '/^https:\/\/.*\.vercel\.app$/', // Vercel frontend deployments
+        '/^https:\/\/.*-admin.*\.vercel\.app$/', // Vercel admin deployments (if separate)
     ],
 
     'allowed_headers' => ['*'],
