@@ -221,6 +221,9 @@ class UserController extends Controller
                 $post->delete();
             }
 
+            // Clean up any empty party lists after posts are deleted
+            $this->cleanupEmptyPartyLists();
+
             // Delete all user's comments
             Comment::where('user_id', $userId)->delete();
 
