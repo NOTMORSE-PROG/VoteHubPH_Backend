@@ -40,6 +40,7 @@ class User extends Authenticatable
         'provider_id',
         'language',
         'profile_completed',
+        'is_admin',
         'prefer_anonymous_voting',
         'mute_comment_notifications',
         'mute_like_notifications',
