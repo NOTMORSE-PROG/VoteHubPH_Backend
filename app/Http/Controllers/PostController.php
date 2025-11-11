@@ -286,7 +286,17 @@ class PostController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'level' => 'required|string|in:National,Local (City/Municipality),Barangay',
-            'position' => 'required|string|max:255',
+            'position' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    // Reject "Party-List Representative" as it's not a valid position
+                    if (strtolower(trim($value)) === 'party-list representative' || strtolower(trim($value)) === 'party list representative') {
+                        $fail('Party-List Representative is not a valid position. Please select a valid position.');
+                    }
+                },
+            ],
             'bio' => 'required|string|max:500',
             'platform' => 'nullable|string|max:1000',
             'education' => 'nullable|array',
