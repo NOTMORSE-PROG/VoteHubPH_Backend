@@ -18,6 +18,22 @@ Route::post('/auth/google', [AuthController::class, 'googleCallback']);
 Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
+// Handle OPTIONS preflight requests for CORS
+Route::options('/auth/verify-otp', function () {
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        ->header('Access-Control-Max-Age', '86400');
+});
+Route::options('/auth/send-otp', function () {
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        ->header('Access-Control-Max-Age', '86400');
+});
+
 // Helpful GET routes for API endpoints (returns method not allowed message)
 Route::get('/auth/send-otp', function () {
     return response()->json([
