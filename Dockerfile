@@ -34,6 +34,6 @@ RUN chown -R www-data:www-data /var/www/html \
 # Expose port (Render will set PORT env variable)
 EXPOSE 8000
 
-# Start command - run migrations and start server
-CMD set -e && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Start command - run migrations, seed admin user, and start server
+CMD set -e && php artisan migrate --force && php artisan db:seed --class=AdminUserSeeder && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
 
