@@ -44,6 +44,19 @@ class PartyListController extends Controller
     }
 
     /**
+     * Get all active party lists (public - for users to view)
+     */
+    public function getPublicPartyLists()
+    {
+        $partyLists = PartyList::where('is_active', true)
+            ->withCount('members')
+            ->orderBy('name')
+            ->get(['id', 'name', 'acronym', 'description', 'sector', 'logo_url', 'member_count', 'created_at']);
+
+        return response()->json($partyLists);
+    }
+
+    /**
      * Create a new party list
      */
     public function store(Request $request)

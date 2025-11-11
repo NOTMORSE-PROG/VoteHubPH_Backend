@@ -298,7 +298,7 @@ class AuthController extends Controller
         }
 
         // Update last login
-        $user->update(['last_login_at' => now()]);
+        $user->update(['lastLoginAt' => now()]);
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -354,7 +354,7 @@ class AuthController extends Controller
         }
 
         // Update last login
-        $user->update(['last_login_at' => now()]);
+        $user->update(['lastLoginAt' => now()]);
 
         // Return success (admin dashboard will use session-based auth)
         return response()->json([

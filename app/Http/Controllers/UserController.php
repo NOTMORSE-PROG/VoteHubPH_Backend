@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Post;
 use App\Models\Comment;
 use App\Models\Vote;
+use App\Models\CommentLike;
 
 class UserController extends Controller
 {
@@ -199,5 +200,51 @@ class UserController extends Controller
                 'profileCompleted' => $user->profileCompleted,
             ],
         ]);
+    }
+
+    /**
+     * Delete user account and all associated data
+     */
+    public function deleteAccount(Request $request)
+    {
+        $userId = $request->get('authenticated_user_id');
+
+        return DB::transaction(function () use ($userId) {
+            // Delete all user's posts (candidates) - this will cascade delete related data
+            $posts = Post::where('user_id', $userId)->get();
+            
+            foreach ($posts as $post) {
+                // Delete post images from Cloudinary if needed
+                // (You can add Cloudinary deletion here if needed)
+                
+                // Delete post (cascades to comments, votes, etc.)
+                $post->delete();
+            }
+
+            // Delete all user's comments
+            Comment::where('user_id', $userId)->delete();
+
+            // Delete all user's comment likes
+            CommentLike::where('user_id', $userId)->delete();
+
+            // Delete all user's votes
+            Vote::where('user_id', $userId)->delete();
+
+            // Delete user's OAuth accounts
+            DB::table('Account')->where('userId', $userId)->delete();
+
+            // Delete user's sessions
+            DB::table('Session')->where('userId', $userId)->delete();
+
+            // Delete user's OTPs if any
+            // (Add if you have an OTP table)
+
+            // Finally, delete the user
+            DB::table('User')->where('id', $userId)->delete();
+
+            return response()->json([
+                'message' => 'Account deleted successfully'
+            ]);
+        });
     }
 }

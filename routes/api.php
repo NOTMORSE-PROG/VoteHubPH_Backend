@@ -55,6 +55,11 @@ Route::get('/locations/cities', [LocationController::class, 'getCities']);
 Route::get('/locations/districts', [LocationController::class, 'getDistricts']);
 Route::get('/locations/barangays', [LocationController::class, 'getBarangays']);
 
+// Public party list routes (read-only)
+Route::get('/partylists', [PartyListController::class, 'getPublicPartyLists']);
+Route::get('/partylists/{id}', [PartyListController::class, 'show']);
+Route::get('/partylists/search', [PartyListController::class, 'search']);
+
 // Admin login (public route)
 Route::post('/admin/login', [AuthController::class, 'adminLogin']);
 
@@ -79,6 +84,7 @@ Route::middleware('nextauth')->group(function () {
     Route::get('/user/profile', [UserController::class, 'profile']);
     Route::post('/user/complete-profile', [UserController::class, 'completeProfile']);
     Route::put('/user/update', [UserController::class, 'update']);
+    Route::delete('/user/delete-account', [UserController::class, 'deleteAccount']);
 
     // Post routes
     // IMPORTANT: Specific routes must come before parameterized routes
