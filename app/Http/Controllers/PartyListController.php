@@ -12,6 +12,8 @@ class PartyListController extends Controller
 {
     /**
      * Search party lists by name
+     * For admin: shows all party lists
+     * For public: shows only active party lists
      */
     public function search(Request $request)
     {
@@ -21,9 +23,21 @@ class PartyListController extends Controller
             return response()->json([]);
         }
 
-        $partyLists = PartyList::where('name', 'LIKE', "%{$query}%")
-            ->orWhere('acronym', 'LIKE', "%{$query}%")
-            ->where('is_active', true)
+        // Check if this is an admin request (has X-User-Id header)
+        $isAdmin = $request->header('X-User-Id') !== null;
+        
+        // Properly group the OR conditions so the search works correctly
+        $partyListsQuery = PartyList::where(function ($q) use ($query) {
+            $q->where('name', 'LIKE', "%{$query}%")
+              ->orWhere('acronym', 'LIKE', "%{$query}%");
+        });
+
+        // Only filter by is_active for public (non-admin) requests
+        if (!$isAdmin) {
+            $partyListsQuery->where('is_active', true);
+        }
+
+        $partyLists = $partyListsQuery
             ->orderBy('name')
             ->limit(10)
             ->get(['id', 'name', 'acronym', 'sector', 'member_count']);
