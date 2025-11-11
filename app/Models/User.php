@@ -61,6 +61,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'profile_completed' => 'boolean',
+            'is_admin' => 'boolean',
             'prefer_anonymous_voting' => 'boolean',
             'mute_comment_notifications' => 'boolean',
             'mute_like_notifications' => 'boolean',

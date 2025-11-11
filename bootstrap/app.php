@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'nextauth' => \App\Http\Middleware\NextAuthSession::class,
+            'admin' => \App\Http\Middleware\AdminAuth::class,
         ]);
 
         // Exclude NextAuth cookies from encryption

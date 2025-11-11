@@ -310,6 +310,65 @@ class AuthController extends Controller
     }
 
     /**
+     * Admin login (separate endpoint for admin dashboard)
+     */
+    public function adminLogin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        // Check if user is admin
+        if (!$user->is_admin) {
+            return response()->json([
+                'message' => 'Admin access required'
+            ], 403);
+        }
+
+        // Check if user has a password set
+        if (!$user->password) {
+            return response()->json([
+                'message' => 'Password not set for this admin account'
+            ], 401);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        // Update last login
+        $user->update(['last_login_at' => now()]);
+
+        // Return success (admin dashboard will use session-based auth)
+        return response()->json([
+            'message' => 'Admin login successful',
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'name' => $user->name,
+                'is_admin' => true,
+            ],
+        ]);
+    }
+
+    /**
      * Logout user (revoke token)
      */
     public function logout(Request $request)

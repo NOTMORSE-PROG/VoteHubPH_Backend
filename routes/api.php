@@ -55,8 +55,11 @@ Route::get('/locations/cities', [LocationController::class, 'getCities']);
 Route::get('/locations/districts', [LocationController::class, 'getDistricts']);
 Route::get('/locations/barangays', [LocationController::class, 'getBarangays']);
 
-// Admin routes (TODO: Add admin authentication)
-Route::prefix('admin')->group(function () {
+// Admin login (public route)
+Route::post('/admin/login', [AuthController::class, 'adminLogin']);
+
+// Admin routes (protected with admin authentication)
+Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/posts', [PostController::class, 'getAllPosts']);
     Route::get('/posts/pending', [PostController::class, 'getPendingPosts']);
     Route::post('/posts/{id}/approve', [PostController::class, 'approve']);
