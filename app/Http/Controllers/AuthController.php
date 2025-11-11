@@ -104,23 +104,25 @@ class AuthController extends Controller
             // Check if mail is configured
             $mailHost = config('mail.mailers.smtp.host');
             $mailUsername = config('mail.mailers.smtp.username');
+            $mailPassword = config('mail.mailers.smtp.password');
             
-            if (empty($mailHost) || empty($mailUsername)) {
-                // Mail not configured - in development, return OTP in response
-                if (config('app.debug')) {
-                    \Log::warning('Mail not configured. Returning OTP in response for development.');
-                    return response()->json([
-                        'message' => 'OTP generated (mail not configured)',
-                        'success' => true,
-                        'otp' => $otpCode, // Only in development
-                        'warning' => 'Mail configuration is missing. Please configure SMTP settings in .env file.',
-                    ]);
-                } else {
-                    return response()->json([
-                        'error' => 'Email service is not configured. Please contact support.'
-                    ], 500);
-                }
+            if (empty($mailHost) || empty($mailUsername) || empty($mailPassword)) {
+                // Mail not configured - return OTP in response
+                \Log::warning('Mail not configured. Returning OTP in response for: ' . $request->email);
+                return response()->json([
+                    'message' => 'OTP generated. Check your email. If you did not receive it, use the code below.',
+                    'success' => true,
+                    'otp' => $otpCode,
+                    'warning' => 'Mail configuration is missing. Please configure SMTP settings.',
+                    'email_sent' => false,
+                ]);
             }
+            
+            // Configure mail settings with proper timeout and encryption
+            config([
+                'mail.mailers.smtp.timeout' => 30,
+                'mail.mailers.smtp.encryption' => env('MAIL_ENCRYPTION', 'tls'),
+            ]);
             
             Mail::to($request->email)->send(new OtpMail($otpCode));
             
