@@ -94,12 +94,15 @@ class AuthController extends Controller
             }
             
             Mail::to($request->email)->send(new OtpMail($otpCode));
+            
+            \Log::info('OTP email sent successfully to: ' . $request->email);
         } catch (\Exception $e) {
             \Log::error('Failed to send OTP email: ' . $e->getMessage());
             \Log::error('Email error details: ' . $e->getTraceAsString());
+            \Log::error('Mail config - Host: ' . config('mail.mailers.smtp.host') . ', Username: ' . config('mail.mailers.smtp.username'));
             
-            // In development, return OTP in response if mail fails
-            if (config('app.debug')) {
+            // In development or if mail fails, return OTP in response
+            if (config('app.debug') || env('APP_ENV') !== 'production') {
                 \Log::warning('Mail sending failed. Returning OTP in response for development.');
                 return response()->json([
                     'message' => 'OTP generated (mail sending failed)',
